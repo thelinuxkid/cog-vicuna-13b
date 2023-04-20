@@ -4,7 +4,7 @@ from typing import Optional
 import torch
 from cog import BasePredictor, ConcatenateIterator, Input, Path
 
-from config import DEFAULT_MODEL_NAME, load_tokenizer, load_tensorizer
+from config import DEFAULT_MODEL_NAME, DEFAULT_CONFIG_PATH, load_tokenizer, load_tensorizer
 from subclass import YieldingLlama
 
 
@@ -16,7 +16,7 @@ class Predictor(BasePredictor):
             weights = None
         if weights is None:
             self.model = load_tensorizer(
-                weights=DEFAULT_MODEL_NAME, plaid_mode=True, cls=YieldingLlama
+                weights=DEFAULT_MODEL_NAME, plaid_mode=True, cls=YieldingLlama, config_path=DEFAULT_CONFIG_PATH,
             )
         elif hasattr(weights, "filename") and "tensors" in weights.filename:
             self.model = load_tensorizer(
