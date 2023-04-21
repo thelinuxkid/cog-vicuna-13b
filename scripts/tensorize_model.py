@@ -6,7 +6,7 @@ import logging
 import sys
 
 from tensorizer import TensorSerializer
-from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
+from transformers import AutoModelForCausalLM, AutoConfig
 
 
 logger = logging.getLogger(__name__)
@@ -14,8 +14,8 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 def tensorize_model(
         model_name: str,
-        model_path: str = None,
-        tensorizer_path: str = None,
+        model_path: str,
+        tensorizer_path: str,
         dtype: str = "fp32",
 ) -> dict:
     """
@@ -27,11 +27,10 @@ def tensorize_model(
 
     Args:
         model_name (str): Name of model on hugging face hub
-        model_path (str, optional): Local path where model weights are saved. Defaults to None.
-        tensorizer_path (str, optional): Local path where tensorizer weights are saved. Defaults to None.
+        model_path (str, optional): Local path where model weights are saved.
+        tensorizer_path (str, optional): Local path where tensorizer weights are saved.
         path (str): Local path where tensorized model weights are saved
-        fp16 (bool, optional): Whether to convert model to fp16. Defaults to False.
-        bf16 (bool, optional): Whether to convert model to bf16. Defaults to True.
+        dtype (str): One of `"fp32"`, `"fp16"`, and `"bf16"`. Defaults to `"fp32"`.
     
     Returns:
         dict: Dictionary containing the tensorized model path and dtype.
@@ -46,22 +45,13 @@ def tensorize_model(
     
     elif dtype == 'fp16':
         torch_dtype = torch.float16
-        
-
-
-    if model_path is None:
-        model_path = os.path.join(os.getcwd(), "model_weights/torch_weights", model_name)
-    
-
-    model_config = AutoConfig.from_pretrained(os.path.join(model_path, 'config.json'))
-    model_config.torch_dtype = torch_dtype
 
     logger.info(f"Loading {model_name} in {dtype} from {model_path}...")
-    model = AutoModelForCausalLM.from_config(model_config, torch_dtype=torch_dtype).to('cuda:0')
 
-    if tensorizer_path is None:
-        tensorizer_path = os.path.join(os.getcwd(), "model_weights/tensorizer_weights", model_name.replace('/', '-') + '-' + dtype + '.tensors')
-        
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, torch_dtype=torch.float16, low_cpu_mem_usage=True
+    ).to('cuda:0')
+
     logger.info(f"Tensorizing model {model_name} in {dtype} and writing tensors to {tensorizer_path}...")
 
     serializer = TensorSerializer(tensorizer_path)

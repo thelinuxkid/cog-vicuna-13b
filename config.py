@@ -13,11 +13,10 @@ from tensorizer.utils import no_init_or_tensor
 
 from subclass import YieldingLlama
 
-DEFAULT_MODEL_NAME = "weights/vicuna-13b/tensorizer_weights/vicuna-13b-16fp.tensors"  # path from which we pull weights when there's no COG_WEIGHTS environment variable
-DEFAULT_CONFIG_PATH = "weights/vicuna-13b/tensorizer_weights/config.json"
-TOKENIZER_PATH = "tokenizer/LLaMA-13b"
+DEFAULT_MODEL_NAME = "models/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"  # path from which we pull weights when there's no COG_WEIGHTS environment variable
+DEFAULT_CONFIG_PATH = "models/vicuna-13b/config.json"
+TOKENIZER_PATH = "models/vicuna-13b"
 
-CONFIG_LOCATION = "llama_weights/llama-13b"
 
 DEFAULT_PAD_TOKEN = "[PAD]"
 DEFAULT_EOS_TOKEN = "</s>"
@@ -29,15 +28,16 @@ def load_tokenizer():
     """Same tokenizer, agnostic from tensorized weights/etc"""
     print(TOKENIZER_PATH)
     print(os.listdir(TOKENIZER_PATH))
+    
     tok = AutoTokenizer.from_pretrained(TOKENIZER_PATH)
-    tok.add_special_tokens(
-        {
-            "eos_token": DEFAULT_EOS_TOKEN,
-            "bos_token": DEFAULT_BOS_TOKEN,
-            "unk_token": DEFAULT_UNK_TOKEN,
-            "pad_token": DEFAULT_PAD_TOKEN,
-        }
-    )
+    # tok.add_special_tokens(
+    #     {
+    #         "eos_token": DEFAULT_EOS_TOKEN,
+    #         "bos_token": DEFAULT_BOS_TOKEN,
+    #         "unk_token": DEFAULT_UNK_TOKEN,
+    #         "pad_token": DEFAULT_PAD_TOKEN,
+    #     }
+    # )
     return tok
 
 
@@ -64,8 +64,6 @@ def load_tensorizer(
         print(f"weights loaded in {time.time() - st}")
 
     else:
-        
-
 
         pattern = r'https://pbxt\.replicate\.delivery/([^/]+/[^/]+)'
         match = re.search(pattern, weights)

@@ -34,16 +34,24 @@ After obtaining the original LLaMA weights, you need to convert them to Hugging 
 
 Then you can run the following script to apply the delta weights (see [here](https://github.com/lm-sys/FastChat#vicuna-weights) for more details). 
 
-The following command expects your Hugging Face format LLaMA weights and tokenizer to be in: `./weights/llama-13b/`
+The following command expects your Hugging Face format LLaMA weights and tokenizer to be in this directory: `./models/llama-13b/hf/`
 
 ```
-cog run python scripts/apply_delta \ 
-   --base weights/llama-13b/
-   --target weights/vicuna-13b/
-   --delta /lmsys/vicuna-13b-delta-v1.1
+cog run python scripts/apply_delta.py --base models/llama-13b/hf --target models/vicuna-13b/hf --delta lmsys/vicuna-13b-delta-v1.1
 ```
 
-You final directory structure should look like this:
+Next, you should copy the tokenizer and model config to a separate directory so they can be copied to your image.
+
+```
+cp models/vicuna-13b/hf/config.json models/vicuna-13b/hf/tokenizer_config.json models/vicuna-13b/hf/special_tokens_map.json models/vicuna-13b/hf/tokenizer.model models/vicuna-13b
+```
+
+Finally, we recommend converting your weights to Tensorizer format, which will dramatically improve read efficiency when you load them. 
+
+```
+cog run python scripts/tensorize_model.py --model_name vicuna-13b --model_path models/vicuna-13b/hf --tensorizer_path models/vicuna-13b/tensorized/vicuna-13b-16fp.tensors --dtype fp16
+```
+
 
 ## Step 2: Run the model
 

@@ -1,7 +1,5 @@
-flan-t5**
-checkpoints/**
 # modify pretrained_weights if you want to build weights into the image
-pretrained_weights/**
-tmp/**
 llama_weights/
 weights
+model_weights
+models/*/*
