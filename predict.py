@@ -1,11 +1,31 @@
 import time
 from typing import Optional
+import subprocess
 
 import torch
+
+from transformers import AutoTokenizer, AutoConfig
+from tensorizer import TensorDeserializer
+from tensorizer.utils import no_init_or_tensor
+from collections import OrderedDict
 from cog import BasePredictor, ConcatenateIterator, Input, Path
 
-from config import DEFAULT_MODEL_NAME, DEFAULT_CONFIG_PATH, load_tokenizer, load_tensorizer
+
+# from config import DEFAULT_MODEL_NAME, DEFAULT_CONFIG_PATH, load_tokenizer, load_tensorizer
 from subclass import YieldingLlama
+
+TENSORIZER_WEIGHTS_PATH = "gs://replicate-weights/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"
+# TENSORIZER_WEIGHTS_PATH = "models/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"  # path from which we pull weights when there's no COG_WEIGHTS environment variable
+
+DEFAULT_CONFIG_PATH = "models/vicuna-13b/config.json"
+TOKENIZER_PATH = "models/vicuna-13b"
+
+def maybe_download(path):
+    if path.startswith("gs://"):
+        output_path = "/tmp/weights.tensors"
+        subprocess.check_call(["gcloud", "storage", "cp", path, output_path])
+        return output_path
+    return path
 
 
 class Predictor(BasePredictor):
@@ -14,26 +34,36 @@ class Predictor(BasePredictor):
         if weights is not None and weights.name == "weights":
             # bugfix
             weights = None
-        if weights is None:
-            self.model = load_tensorizer(
-                weights=DEFAULT_MODEL_NAME, plaid_mode=True, cls=YieldingLlama, config_path=DEFAULT_CONFIG_PATH,
+        if weights is None and TENSORIZER_WEIGHTS_PATH:
+            self.model = self.load_tensorizer(
+                weights=maybe_download(TENSORIZER_WEIGHTS_PATH), plaid_mode=True, cls=YieldingLlama, config_path=DEFAULT_CONFIG_PATH,
             )
+        
         elif hasattr(weights, "filename") and "tensors" in weights.filename:
-            self.model = load_tensorizer(
-                weights=weights, plaid_mode=True, cls=YieldingLlama
+            self.model = self.load_tensorizer(
+                weights=weights, plaid_mode=True, cls=YieldingLlama, config_path=DEFAULT_CONFIG_PATH,
             )
         elif hasattr(weights, "suffix") and "tensors" in weights.suffix:
-            self.model = load_tensorizer(
+            self.model = self.load_tensorizer(
                 weights=weights, plaid_mode=True, cls=YieldingLlama
             )
         elif "tensors" in weights:
-            self.model = load_tensorizer(
+            self.model = self.load_tensorizer(
                 weights=weights, plaid_mode=True, cls=YieldingLlama
             )
         else:
             self.model = self.load_huggingface_model(weights=weights)
 
-        self.tokenizer = load_tokenizer()
+        print('here....right?')
+        self.tokenizer = self.load_tokenizer(TOKENIZER_PATH)
+        print('here....wtf?')
+    
+    def load_tokenizer(self, path):
+        print('...did we get...here?')
+        tokenizer = AutoTokenizer.from_pretrained(path)
+        print("...tokenizer loaded?...")
+
+        return tokenizer
 
     def load_huggingface_model(self, weights=None):
         st = time.time()
@@ -42,6 +72,22 @@ class Predictor(BasePredictor):
             weights, cache_dir="pretrained_weights", torch_dtype=torch.float16
         )
         model.to(self.device)
+        print(f"weights loaded in {time.time() - st}")
+        return model
+    
+    def load_tensorizer(self, weights, plaid_mode, cls, config_path):
+        st = time.time()
+        print(f"deserializing weights from {weights}")
+        config = AutoConfig.from_pretrained(config_path)
+
+        model = no_init_or_tensor(
+            lambda: cls.from_pretrained(
+                None, config=config, state_dict=OrderedDict()
+            )
+        )
+
+        des = TensorDeserializer(weights, plaid_mode=True)
+        des.load_into_module(model)
         print(f"weights loaded in {time.time() - st}")
         return model
 
