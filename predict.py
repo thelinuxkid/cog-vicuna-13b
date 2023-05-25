@@ -14,8 +14,7 @@ from cog import BasePredictor, ConcatenateIterator, Input, Path
 # from config import DEFAULT_MODEL_NAME, DEFAULT_CONFIG_PATH, load_tokenizer, load_tensorizer
 from subclass import YieldingLlama
 
-TENSORIZER_WEIGHTS_PATH = "gs://replicate-weights/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"
-# TENSORIZER_WEIGHTS_PATH = "models/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"  # path from which we pull weights when there's no COG_WEIGHTS environment variable
+TENSORIZER_WEIGHTS_PATH = "models/vicuna-13b/tensorized/vicuna-13b-16fp.tensors"  # path from which we pull weights when there's no COG_WEIGHTS environment variable
 
 DEFAULT_CONFIG_PATH = "models/vicuna-13b/config.json"
 TOKENIZER_PATH = "models/vicuna-13b"
@@ -54,15 +53,10 @@ class Predictor(BasePredictor):
         else:
             self.model = self.load_huggingface_model(weights=weights)
 
-        print('here....right?')
         self.tokenizer = self.load_tokenizer(TOKENIZER_PATH)
-        print('here....wtf?')
     
     def load_tokenizer(self, path):
-        print('...did we get...here?')
         tokenizer = AutoTokenizer.from_pretrained(path)
-        print("...tokenizer loaded?...")
-
         return tokenizer
 
     def load_huggingface_model(self, weights=None):
@@ -117,11 +111,24 @@ class Predictor(BasePredictor):
             le=5,
             default=1,
         ),
+        seed: int = Input(
+            description="Seed for random number generator, for reproducibility",
+            ge=-1,
+            default=-1,
+        ),
         debug: bool = Input(
             description="provide debugging output in logs", default=False
         ),
     ) -> ConcatenateIterator[str]:
         input = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
+        n_new_tokens = 1
+
+        if seed != -1:
+            torch.manual_seed(seed)
+        else:
+            seed = torch.seed()
+        
+        print(f"seed: {seed}")
 
         with torch.inference_mode():
             first_token_yielded = False
@@ -134,6 +141,8 @@ class Predictor(BasePredictor):
                 top_p=top_p,
                 repetition_penalty=repetition_penalty,
             ):
+                n_new_tokens += 1
+
                 cur_id = output.item()
 
                 # in order to properly handle spaces, we need to do our own tokenizing. Fun!
@@ -144,7 +153,7 @@ class Predictor(BasePredictor):
                 if not first_token_yielded and not prev_ids and cur_id == 13:
                     continue
 
-                # underscore means a space, means we yield previous tokens
+                # underscore means a new word, means we yield previous tokens
                 if cur_token.startswith("▁"):  # this is not a standard underscore.
                     # first token
                     if not prev_ids:
@@ -153,7 +162,7 @@ class Predictor(BasePredictor):
 
                     # there are tokens to yield
                     else:
-                        token = self.tokenizer.decode(prev_ids)
+                        token = self.tokenizer.decode(prev_ids) + ' '
                         prev_ids = [cur_id]
 
                         if not first_token_yielded:
@@ -174,6 +183,9 @@ class Predictor(BasePredictor):
             yield token
 
         if debug:
+            n_tokens_in_prompt = len(self.tokenizer(prompt)["input_ids"])
+            print(f"Number of tokens in prompt: {n_tokens_in_prompt}")
+            print(f"Number of tokens generated: {n_new_tokens}")
             print(f"cur memory: {torch.cuda.memory_allocated()}")
             print(f"max allocated: {torch.cuda.max_memory_allocated()}")
             print(f"peak memory: {torch.cuda.max_memory_reserved()}")
